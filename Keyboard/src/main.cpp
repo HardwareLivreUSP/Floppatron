@@ -12,12 +12,12 @@ uint8_t broadcastAddress[] = {0xC8, 0x2B, 0x96, 0x30, 0x4F, 0xCE};
 typedef struct _note {
   bool state;
   int button_N;
-  int channel;
+  unsigned int channel;
 } note;
 
 note myNote;
 
-int curChannel = 0;
+unsigned int curChannel = 0;
 
 esp_now_peer_info_t peerInfo;
 
@@ -27,7 +27,7 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
  
-void sendNote (int button_n, bool state, int channel) {
+void sendNote (int button_n, bool state, unsigned int channel) {
   myNote.button_N = button_n;
   myNote.state = state;
   myNote.channel = channel;

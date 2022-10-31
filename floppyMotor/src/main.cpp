@@ -4,6 +4,8 @@
 #include <Scheduler.h>
 #include <Task.h>
 
+#define LENGTH(_Array) (sizeof(_Array) / sizeof(_Array[0]))
+
 // Please set the pins inside each channel instatiation below
 // These are defined as legacy for the hardcoded song
 #define C0_PIN_STEP D5
@@ -106,7 +108,7 @@
 typedef struct _note {
     bool state;
     int button_N;
-    int channel;
+    unsigned int channel;
 } note;
 
 note myNote;
@@ -279,11 +281,8 @@ class ChannelPlayer : public Task {
 };
 
 ChannelPlayer c0(D5, D7);
-// ChannelPlayer c1( , );
-// ChannelPlayer c2( , );
-// ChannelPlayer c3( , );
-// ChannelPlayer c4( , );
 
+// we can't create the objects directly inside the array, or else all hell breaks loose 
 ChannelPlayer* channels[] = {
     &c0
 };
@@ -301,7 +300,7 @@ void OnDataRecv(uint8_t *mac, uint8_t *incomingData, uint8_t len) {
     Serial.println();
 
     // Sanity check
-    if (myNote.channel > sizeof(channels)/sizeof(channels[0]) - 1){
+    if (myNote.channel >= LENGTH(channels)){
         Serial.println("INVALID CHANNEL!");
     }
     else {
@@ -328,6 +327,10 @@ void setup() {
 
     esp_now_set_self_role(ESP_NOW_ROLE_SLAVE);
     esp_now_register_recv_cb(OnDataRecv);
+
+    for (unsigned int i = 0; i < LENGTH(channels); i++){
+        Scheduler.start(channels[i]);
+    }
 }
 
 void loop() {
