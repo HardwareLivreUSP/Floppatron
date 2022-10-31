@@ -1,9 +1,14 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <espnow.h>
+#include <Scheduler.h>
+#include <Task.h>
 
-#define PIN_STEP D5
-#define PIN_DIR D7
+// Please set the pins inside each channel instatiation below
+// These are defined as legacy for the hardcoded song
+#define C0_PIN_STEP D5
+#define C0_PIN_DIR D7
+
 #define MAX_STEPS 100
 #define NUM_BUTTONS 12
 
@@ -101,12 +106,11 @@
 typedef struct _note {
     bool state;
     int button_N;
+    int channel;
 } note;
 
 note myNote;
 int button_N = -1;
-
-bool playNote = false;
 
 // Underworld melody
 int underworld_melody[] = {
@@ -165,21 +169,21 @@ uint16_t notes[NUM_BUTTONS] = {NOTE_C3,
                                NOTE_AS3,
                                NOTE_B3};
 
-void set_dir(int dir) {
-    digitalWrite(PIN_DIR, dir == 1 ? HIGH : LOW);
+void set_dir(int pin_dir, int dir) {
+    digitalWrite(pin_dir, dir == 1 ? HIGH : LOW);
 };
 
-void step() {
+void step(int pin_step, int pin_dir) {
     static int count = 0;
     static int last_step = LOW;
     static int dir = 1;
 
     if (count >= MAX_STEPS || count < 0) {
         dir *= -1;
-        set_dir(dir);
+        set_dir(pin_dir, dir);
     }
     last_step = last_step ? LOW : HIGH;
-    digitalWrite(PIN_STEP, last_step);
+    digitalWrite(pin_step, last_step);
     count += dir;
 }
 
@@ -188,19 +192,9 @@ void floppy_tone(float freq) {
     float period = 1000 / freq;  // milisegundos
 
     for (int i = 0; i < steps; i++) {
-        step();
+        step(C0_PIN_STEP, C0_PIN_DIR);
         delay(period);
     }
-}
-
-void _fplay_hz_key() {
-    int sleeptime = ((1.0 / notes[button_N]) * 1000) * 1000;
-    while (playNote) {
-        step();
-        delayMicroseconds(sleeptime);
-        yield();
-    }
-    delay(10);
 }
 
 void floppy_tone_tempo(float freq, float duration) {
@@ -211,7 +205,7 @@ void floppy_tone_tempo(float freq, float duration) {
     sleeptime = sleeptime * 1000;
     if ((duration > 0) and (freq >= 30) and (freq <= 500) and (cycles > 0)) {
         for (int c = 1; c <= cycles; c++) {
-            step();
+            step(C0_PIN_STEP, C0_PIN_DIR);
             delayMicroseconds(sleeptime);
             yield();
         }
@@ -258,6 +252,42 @@ void play_notes() {
     delay(100);
 }
 
+class ChannelPlayer : public Task {
+ public:
+    int pin_step;
+    int pin_dir;
+    note current_note;
+    ChannelPlayer(int init_pin_step, int init_pin_dir){
+        pin_step = init_pin_step;
+        pin_dir = init_pin_dir;
+    };
+ protected:
+  void setup() {
+    pinMode(pin_step, OUTPUT);
+    pinMode(pin_dir, OUTPUT);
+  }
+
+  void loop() {
+    int sleeptime = ((1.0 / notes[button_N]) * 1000);
+    while (current_note.state) {
+        step(pin_step, pin_dir);
+        delay(sleeptime); // this should now be an async delay that yields to ESP8266Scheduler 
+        yield(); // this should yield to the 8266 chip, allowing espnow to magically work
+    }
+  }
+
+};
+
+ChannelPlayer c0(D5, D7);
+// ChannelPlayer c1( , );
+// ChannelPlayer c2( , );
+// ChannelPlayer c3( , );
+// ChannelPlayer c4( , );
+
+ChannelPlayer* channels[] = {
+    &c0
+};
+
 void OnDataRecv(uint8_t *mac, uint8_t *incomingData, uint8_t len) {
     memcpy(&myNote, incomingData, sizeof(myNote));
     Serial.print("Bytes received: ");
@@ -266,22 +296,27 @@ void OnDataRecv(uint8_t *mac, uint8_t *incomingData, uint8_t len) {
     Serial.println(myNote.state);
     Serial.print("Button_N: ");
     Serial.println(myNote.button_N);
+    Serial.print("Channel: ");
+    Serial.println(myNote.channel);
     Serial.println();
 
-    if (myNote.state == true) {
-        playNote = true;
-        button_N = myNote.button_N;
-    } else
-        playNote = false;
+    // Sanity check
+    if (myNote.channel > sizeof(channels)/sizeof(channels[0]) - 1){
+        Serial.println("INVALID CHANNEL!");
+    }
+    else {
+        note* notePtr = &(channels[myNote.channel]->current_note);
+        memcpy(&notePtr, &myNote, sizeof(myNote));
+    }
+    
 }
+
 
 void setup() {
     Serial.begin(115200);
-    pinMode(PIN_STEP, OUTPUT);
-    pinMode(PIN_DIR, OUTPUT);
     Serial.println("Start");
     WiFi.mode(WIFI_STA);
-    play_melody();
+    // play_melody();
     Serial.println();
     Serial.print("Endereco MAC: ");
     Serial.println(WiFi.macAddress());
@@ -296,6 +331,6 @@ void setup() {
 }
 
 void loop() {
-    _fplay_hz_key();
+    // _fplay_hz_key();
     // play_notes();
 }

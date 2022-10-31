@@ -12,9 +12,12 @@ uint8_t broadcastAddress[] = {0xC8, 0x2B, 0x96, 0x30, 0x4F, 0xCE};
 typedef struct _note {
   bool state;
   int button_N;
+  int channel;
 } note;
 
 note myNote;
+
+int curChannel = 0;
 
 esp_now_peer_info_t peerInfo;
 
@@ -24,10 +27,11 @@ void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
 }
  
-void sendNote (int button_n, bool state) {
+void sendNote (int button_n, bool state, int channel) {
   myNote.button_N = button_n;
   myNote.state = state;
-  Serial.println("State: " + String(state) + " button_n: "+ String(button_n));
+  myNote.channel = channel;
+  Serial.println("State: " + String(state) + " button_n: "+ String(button_n) + " channel: "+ String(channel));
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myNote, sizeof(myNote));
   if (result == ESP_OK) Serial.println("Sent with success");
   else Serial.println("Error sending the data");
@@ -44,8 +48,8 @@ void instanceButtons() {
 void readButtons() {
  for (int i = 0; i < NUM_BUTTONS; i++)  {
     buttons[i].update();
-    if ( buttons[i].fell() ) sendNote (i, true);
-    else if (buttons[i].rose()) sendNote (i, false);
+    if ( buttons[i].fell() ) sendNote (i, true, curChannel++);
+    else if (buttons[i].rose()) sendNote (i, false, curChannel--);
     Serial.print(String(buttons[i].read()) + " ");
   }
   Serial.println();
