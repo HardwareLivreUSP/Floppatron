@@ -275,7 +275,7 @@ class ChannelPlayer : public Task {
   }
 
   void loop() {
-    int sleeptime = ((1000.0 / notes[current_note->button_N]));
+    int sleeptime = (((1000.0*1000.0) / notes[current_note->button_N]));
     if (current_note->state && false){
         Serial.println("loop N "+String(current_note->button_N));
         Serial.println("loop notes[button_N] "+String(notes[current_note->button_N]));
