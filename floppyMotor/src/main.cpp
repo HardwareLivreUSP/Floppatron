@@ -105,6 +105,8 @@
 #define NOTE_DS8 4978
 #define REST      1
 
+void step(int pin_step, int pin_dir, int channel);
+
 typedef struct _note {
     bool state;
     int button_N;
@@ -174,90 +176,79 @@ void set_dir(int pin_dir, int dir) {
     digitalWrite(pin_dir, dir == 1 ? HIGH : LOW);
 };
 
-void step(int pin_step, int pin_dir) {
-    static int count = 0;
-    static int last_step = LOW;
-    static int dir = 1;
+// void floppy_tone(float freq) {
+//     int steps = freq;
+//     float period = 1000 / freq;  // milisegundos
 
-    if (count >= MAX_STEPS || count < 0) {
-        dir *= -1;
-        set_dir(pin_dir, dir);
-    }
-    last_step = last_step ? LOW : HIGH;
-    digitalWrite(pin_step, last_step);
-    count += dir;
-}
+//     for (int i = 0; i < steps; i++) {
+//         step(C0_PIN_STEP, C0_PIN_DIR);
+//         delay(period);
+//     }
+// }
 
-void floppy_tone(float freq) {
-    int steps = freq;
-    float period = 1000 / freq;  // milisegundos
+// void floppy_tone_tempo(float freq, float duration) {
+//     float sleeptime;
+//     int cycles;
+//     sleeptime = ((1.0 / freq) * 1000);
+//     cycles = (duration / (sleeptime + 3));
+//     sleeptime = sleeptime * 1000;
+//     if ((duration > 0) and (freq >= 30) and (freq <= 500) and (cycles > 0)) {
+//         for (int c = 1; c <= cycles; c++) {
+//             step(C0_PIN_STEP, C0_PIN_DIR);
+//             delayMicroseconds(sleeptime);
+//             yield();
+//         }
+//     } else {
+//         delay(duration);
+//     }
+// }
 
-    for (int i = 0; i < steps; i++) {
-        step(C0_PIN_STEP, C0_PIN_DIR);
-        delay(period);
-    }
-}
-
-void floppy_tone_tempo(float freq, float duration) {
-    float sleeptime;
-    int cycles;
-    sleeptime = ((1.0 / freq) * 1000);
-    cycles = (duration / (sleeptime + 3));
-    sleeptime = sleeptime * 1000;
-    if ((duration > 0) and (freq >= 30) and (freq <= 500) and (cycles > 0)) {
-        for (int c = 1; c <= cycles; c++) {
-            step(C0_PIN_STEP, C0_PIN_DIR);
-            delayMicroseconds(sleeptime);
-            yield();
-        }
-    } else {
-        delay(duration);
-    }
-}
-
-void play_melody() {
-    Serial.println(" 'Mario Theme'");
-    int size = sizeof(underworld_melody) / sizeof(int);
-    for (int thisNote = 0; thisNote < size; thisNote++) {
-        int noteDuration = 1000 / underworld_tempo[thisNote];
-        Serial.println(String(underworld_melody[thisNote]) + " " + String(noteDuration));
-        floppy_tone_tempo(underworld_melody[thisNote] * 0.3, noteDuration);
-        int pauseBetweenNotes = noteDuration * 1.30;
-        delay(pauseBetweenNotes);
-    }
-}
+// void play_melody() {
+//     Serial.println(" 'Mario Theme'");
+//     int size = sizeof(underworld_melody) / sizeof(int);
+//     for (int thisNote = 0; thisNote < size; thisNote++) {
+//         int noteDuration = 1000 / underworld_tempo[thisNote];
+//         Serial.println(String(underworld_melody[thisNote]) + " " + String(noteDuration));
+//         floppy_tone_tempo(underworld_melody[thisNote] * 0.3, noteDuration);
+//         int pauseBetweenNotes = noteDuration * 1.30;
+//         delay(pauseBetweenNotes);
+//     }
+// }
 
 
-void play_notes() {
-    floppy_tone_tempo(NOTE_C3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_CS3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_D3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_DS3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_E3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_F3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_FS3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_G3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_GS3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_A3, 2000);
-    delay(100);
-    floppy_tone_tempo(NOTE_AS3, 2000);
-    delay(100);
-}
+// void play_notes() {
+//     floppy_tone_tempo(NOTE_C3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_CS3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_D3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_DS3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_E3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_F3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_FS3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_G3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_GS3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_A3, 2000);
+//     delay(100);
+//     floppy_tone_tempo(NOTE_AS3, 2000);
+//     delay(100);
+// }
 
 class ChannelPlayer : public Task {
  public:
     int pin_step;
     int pin_dir;
     note* current_note;
+    int count = 0;
+    int last_step = LOW;
+    int dir = 1;
     ChannelPlayer(int init_pin_step, int init_pin_dir){
         pin_step = init_pin_step;
         pin_dir = init_pin_dir;
@@ -286,20 +277,40 @@ class ChannelPlayer : public Task {
     
 
     while (current_note->state) {
-        step(pin_step, pin_dir);
+        unsigned long int start = micros();
+        //Serial.println(""+String(current_note->channel));
+        step(pin_step, pin_dir, current_note->channel);
         delay(sleeptime); // this should now be an async delay that yields to ESP8266Scheduler 
-        yield(); // this should yield to the 8266 chip, allowing espnow to magically work
+        Serial.println(String(current_note->channel) + " " +String(micros()-start));
+        // yield(); // this should yield to the 8266 chip, allowing espnow to magically work
     }
   }
 
 };
 
+// ChannelPlayer c0(STEP, DIR);
 ChannelPlayer c0(D5, D7);
+ChannelPlayer c1(D1, D2);
+ChannelPlayer c2(D3, D4);
 
 // we can't create the objects directly inside the array, or else all hell breaks loose 
 ChannelPlayer* channels[] = {
-    &c0
+    &c0,
+    &c1,
+    &c2
 };
+
+void step(int pin_step, int pin_dir, int channel) {
+    ChannelPlayer* cp = channels[channel];
+
+    if (cp->count >= MAX_STEPS || cp->count < 0) {
+        cp->dir *= -1;
+        set_dir(pin_dir, cp->dir);
+    }
+    cp->last_step = cp->last_step ? LOW : HIGH;
+    digitalWrite(pin_step, cp->last_step);
+    cp->count += cp->dir;
+}
 
 void OnDataRecv(uint8_t *mac, uint8_t *incomingData, uint8_t len) {
     memcpy(&myNote, incomingData, sizeof(myNote));
