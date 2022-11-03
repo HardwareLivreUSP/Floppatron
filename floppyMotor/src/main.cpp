@@ -112,7 +112,6 @@ typedef struct _note {
 } note;
 
 note myNote;
-int button_N = -1;
 
 // Underworld melody
 int underworld_melody[] = {
@@ -258,20 +257,35 @@ class ChannelPlayer : public Task {
  public:
     int pin_step;
     int pin_dir;
-    note current_note;
+    note* current_note;
     ChannelPlayer(int init_pin_step, int init_pin_dir){
         pin_step = init_pin_step;
         pin_dir = init_pin_dir;
     };
  protected:
   void setup() {
+    Serial.println("setup ran");
+    current_note = (note*) malloc(sizeof(myNote));
+    current_note->button_N = -1;
+    current_note->channel = 0;
+    current_note->state = 0;
+
     pinMode(pin_step, OUTPUT);
     pinMode(pin_dir, OUTPUT);
   }
 
   void loop() {
-    int sleeptime = ((1.0 / notes[button_N]) * 1000);
-    while (current_note.state) {
+    int sleeptime = ((1000.0 / notes[current_note->button_N]));
+    if (current_note->state && false){
+        Serial.println("loop N "+String(current_note->button_N));
+        Serial.println("loop notes[button_N] "+String(notes[current_note->button_N]));
+        Serial.println("loop sleep "+String(sleeptime));
+        Serial.println("loop float "+String((1000.0 / notes[current_note->button_N])));
+        Serial.println("loop addrN "+String((unsigned int)&current_note->button_N));
+    }
+    
+
+    while (current_note->state) {
         step(pin_step, pin_dir);
         delay(sleeptime); // this should now be an async delay that yields to ESP8266Scheduler 
         yield(); // this should yield to the 8266 chip, allowing espnow to magically work
@@ -304,8 +318,16 @@ void OnDataRecv(uint8_t *mac, uint8_t *incomingData, uint8_t len) {
         Serial.println("INVALID CHANNEL!");
     }
     else {
-        note* notePtr = &(channels[myNote.channel]->current_note);
-        memcpy(&notePtr, &myNote, sizeof(myNote));
+        note* notePtr = channels[myNote.channel]->current_note;
+        Serial.println("note addr "+String((unsigned int)notePtr));
+        Serial.println("note state "+String((unsigned int)notePtr->state));
+        Serial.println("note N "+String((unsigned int)notePtr->button_N));
+        Serial.println("note addr N "+String((unsigned int)&notePtr->button_N));
+        notePtr->button_N = myNote.button_N;
+        notePtr->state = myNote.state;
+        notePtr->channel = myNote.channel;
+
+        //memcpy(&notePtr, &myNote, sizeof(myNote));
     }
     
 }
@@ -330,7 +352,9 @@ void setup() {
 
     for (unsigned int i = 0; i < LENGTH(channels); i++){
         Scheduler.start(channels[i]);
+        Serial.println("Starting channel "+String(i));
     }
+    Scheduler.begin();
 }
 
 void loop() {
