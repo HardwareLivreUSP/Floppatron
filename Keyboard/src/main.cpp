@@ -4,7 +4,7 @@
 #include <Bounce2.h>
 #define NUM_BUTTONS 12
 
-const uint8_t BUTTON_PINS[NUM_BUTTONS] = {12, 14, 27, 26, 25, 33, 32, 22, 19, 23, 18, 5};
+const uint8_t BUTTON_PINS[NUM_BUTTONS] = {32, 5, 33, 18, 25, 26, 23, 27, 19, 14, 22, 12};
 Bounce * buttons = new Bounce[NUM_BUTTONS];
 
 uint8_t broadcastAddress[] = {0xC8, 0x2B, 0x96, 0x30, 0x4F, 0xCE};
@@ -49,7 +49,7 @@ void readButtons() {
  for (int i = 0; i < NUM_BUTTONS; i++)  {
     buttons[i].update();
     if ( buttons[i].fell() ) sendNote (i, true, curChannel++);
-    else if (buttons[i].rose()) sendNote (i, false, curChannel--);
+    else if (buttons[i].rose()) sendNote (i, false, --curChannel);
     Serial.print(String(buttons[i].read()) + " ");
   }
   Serial.println();
