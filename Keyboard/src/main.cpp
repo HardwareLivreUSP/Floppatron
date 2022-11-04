@@ -2,7 +2,8 @@
 #include <esp_now.h>
 #include <WiFi.h>
 #include <Bounce2.h>
-#include <stack>
+#include <vector>
+#include <algorithm>
 #define NUM_BUTTONS 12
 
 const uint8_t BUTTON_PINS[NUM_BUTTONS] = {32, 5, 33, 18, 25, 26, 23, 27, 19, 14, 22, 12};
@@ -12,6 +13,9 @@ int button_channels[] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 uint8_t broadcastAddress[] = {0xC8, 0x2B, 0x96, 0x30, 0x4F, 0xCE};
 
+bool reverseComp (int i,int j) { return (i>j); }
+
+
 typedef struct _note {
   bool state;
   int button_N;
@@ -20,7 +24,9 @@ typedef struct _note {
 
 note myNote;
 
-std::stack<int> channel_stack;
+int playing_channels = 0;
+
+std::vector<int> channel_stack;
 
 esp_now_peer_info_t peerInfo;
 
@@ -34,14 +40,15 @@ void sendNote (int button_n, bool state) {
   myNote.button_N = button_n;
   myNote.state = state;
   if (state){
-    button_channels[button_n] = channel_stack.top();
-    channel_stack.pop();
+    std::sort(channel_stack.begin(), channel_stack.end(), reverseComp);
+    button_channels[button_n] = channel_stack.back();
+    channel_stack.pop_back();
     myNote.channel = button_channels[button_n];
   }
   else{
     myNote.channel = button_channels[button_n];
     button_channels[button_n] = -1;
-    channel_stack.push(myNote.channel);
+    channel_stack.push_back(myNote.channel);
   }
   Serial.println("State: " + String(state) + " button_n: "+ String(button_n) + " channel: "+ String(myNote.channel));
   esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &myNote, sizeof(myNote));
@@ -86,7 +93,8 @@ void setup() {
   peerInfo.channel = 0;  
   peerInfo.encrypt = false;
   for (int i = 12; i>=0; i--){
-    channel_stack.push(i);
+    channel_stack.push_back(i);
+    std::sort(channel_stack.begin(), channel_stack.end(), reverseComp);
   }
   if (esp_now_add_peer(&peerInfo) != ESP_OK){
     Serial.println("Failed to add peer");
